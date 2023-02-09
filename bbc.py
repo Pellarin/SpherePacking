@@ -38,10 +38,19 @@ import matplotlib.pyplot as plt
 
 
 
-sdpdf=pdf.gyroid(200.0)
+sdpdf=pdf.gyroid(400.0)
 sd_density = sdpdf(xaxis[:,None,None], yaxis[None,:,None], zaxis[None,None,:])
 pdf.save_density(sd_density, 1.0, "sd.mrc", origin=None)
 
+
+#pdf.extrudepdf(sd_density,0.6,0.01)
+
+
+extrusion=pdf.extrude(sd_density,0.9,0.01)
+pdf.save_density(extrusion, 1.0, "sd_extrusion.mrc", origin=None)
+rs,points,radii=pdf.sample_extrusion(extrusion,min_distance_beads=6)
+pdf.save_density(rs, 1.0, "points_sd.mrc", origin=None)
+exit()
 
 rs,points,radii=pdf.sample_surface(sd_density,0.6,0.3,min_distance_beads=6)
 pdf.save_density(rs, 1.0, "points_sd.mrc", origin=None)

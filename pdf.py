@@ -3,6 +3,9 @@ from scipy import spatial
 import mrcfile
 import random
 import dill as pickle
+from scipy.spatial import distance
+from tqdm import tqdm
+import sys
 
 
 
@@ -27,17 +30,61 @@ def save_density(data, grid_spacing, outfilename, origin=None):
         mrc.update_header_stats()
     print("done")
 
+def extrude(result,density_skin,density_skin_thickness, extrusion1=10, extrusion2=13):
+    w=np.where((result>=density_skin) & (result<density_skin+density_skin_thickness))
+    wt=list(zip(*w))
+    rest1=np.zeros_like(result)
+    for p in tqdm(wt):
+        rest1[p[0]-extrusion1:p[0]+extrusion1,p[1]-extrusion1:p[1]+extrusion1,p[2]-extrusion1:p[2]+extrusion1]=1.0
+    rest2=np.zeros_like(result)
+    
+    for p in tqdm(wt):
+        rest2[p[0]-extrusion2:p[0]+extrusion2,p[1]-extrusion2:p[1]+extrusion2,p[2]-extrusion2:p[2]+extrusion2]=1.0
+    
+    rest=rest2-rest1
+    return rest
+
+def sample_extrusion(extrusion,min_distance_beads=10.0):
+    w=np.where(extrusion==1)
+    wt=list(zip(*w))
+    rest=np.ones_like(range(len(wt)))
+    points=[]
+    tree = spatial.KDTree(wt)
+
+    total=np.sum(rest)
+    while np.sum(rest)>0:
+        #progress bar
+        sys.stdout.write('\r')
+        sys.stdout.write(str(np.sum(rest)/total))
+        sys.stdout.flush()
+        choice_index=np.random.choice(np.where(rest == 1)[0])
+        v=wt[choice_index]
+        points.append(v)
+
+        indexes=tree.query_ball_point(v,r=min_distance_beads)
+        rest[indexes]=0
+
+
+    rs=np.zeros_like(extrusion)
+    rs[points]=1.0
+    
+    radii=[min_distance_beads/2]*len(points)
+    return rs,points,radii
+
 def sample_surface(result,density_skin,density_skin_thickness,min_distance_beads=4.0):
     w=np.where((result>=density_skin) & (result<density_skin+density_skin_thickness))
     wt=list(zip(*w))
     rest=np.ones_like(range(len(wt)))
-    print(rest)
     points=[]
     tree = spatial.KDTree(wt)
-
-
-
+    
+    total=np.sum(rest)
     while np.sum(rest)>0:
+        #progress bar
+        sys.stdout.write('\r')
+        sys.stdout.write(str(np.sum(rest)/total))
+        sys.stdout.flush()
+    
         choice_index=np.random.choice(np.where(rest == 1)[0])
         v=wt[choice_index]
         points.append(v)
@@ -143,6 +190,21 @@ def cylinder_filter(xc,yc,r=50.0,tolerance=100,filterout_external=True):
         return np.exp(-argument)
     return pdf
 
+def extrudepdf(evaluated_pdf,threshold,thickness,extrusion=10,tolerance=100):
+    # very heavy and slow
+    w=np.where((evaluated_pdf>=threshold) & (evaluated_pdf<threshold+thickness))
+    point_cloud_target=np.array(list(zip(*w)))
+    
+    rest=np.zeros_like(evaluated_pdf)
+    
+    wt=np.where(rest==0)
+    point_cloud=list(zip(*wt))
+    
+    for p in tqdm(point_cloud):
+        d=np.min(distance.cdist([p],point_cloud_target))
+        argument=(d-extrusion)**2/tolerance
+        rest[p]=np.exp(-argument)
+    return
 
 def joinpdf(pdfs):
     
