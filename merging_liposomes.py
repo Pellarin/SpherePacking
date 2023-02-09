@@ -6,17 +6,17 @@ import dill as pickle
 import pdf
 
 #parameters grid
-minx=-300
-maxx=300
-nx=600
+minx=-350
+maxx=350
+nx=700
 
-miny=-150
-maxy=150
-ny=300
+miny=-200
+maxy=200
+ny=400
 
-minz=-150
-maxz=150
-nz=300
+minz=-200
+maxz=200
+nz=400
 
 #density selection
 density_skin=0.41
@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt
 
 
 sphere1=pdf.sphere(xc=140,yc=0,zc=0,r=140,tolerance=1000)
-sphere2=pdf.sphere(xc=-120,yc=0,zc=0,r=120,tolerance=1000)
+sphere2=pdf.sphere(xc=-100,yc=0,zc=0,r=120,tolerance=1000)
 
 # create the cylinders
 joint=pdf.joinpdf([sphere1,sphere2])
@@ -52,6 +52,11 @@ pdf.save_density(sphere_density, 1.0, "sphere_intersect.mrc", origin=None)
 
 remove=sphere_density-sphere_intersect
 pdf.save_density(remove, 1.0, "sphere_remove.mrc", origin=None)
+
+extrude=pdf.extrude(remove,0.72,0.5)
+pdf.save_density(extrude, 1.0, "sphere_intersect_extrusion.mrc", origin=None)
+
+
 
 exit()
 cylinder_threshold=(0.06,0.01)
