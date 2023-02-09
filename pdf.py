@@ -62,11 +62,13 @@ def sample_extrusion(extrusion,min_distance_beads=10.0):
         points.append(v)
 
         indexes=tree.query_ball_point(v,r=min_distance_beads)
-        rest[indexes]=0
+        for i in indexes: rest[i]=0
 
 
     rs=np.zeros_like(extrusion)
-    rs[points]=1.0
+    for p in points:
+        rs[p]=1.0
+    
     
     radii=[min_distance_beads/2]*len(points)
     return rs,points,radii
