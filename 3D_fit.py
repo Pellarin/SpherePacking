@@ -1,9 +1,11 @@
 import IMP
 import IMP.atom
 import IMP.core
+import IMP.display
 import random
 import dill as pickle
 import numpy as np
+from scipy.spatial import Delaunay
 
 # create an IMP model
 m=IMP.Model()
@@ -88,7 +90,10 @@ class SurfaceRestraint(IMP.Restraint):
     def do_get_inputs(self):
         return self.particles
 
-
+def closest_node(node, nodes):
+    nodes = np.asarray(nodes)
+    dist_2 = np.sum((nodes - node)**2, axis=1)
+    return np.argmin(dist_2)
 
 
 
@@ -126,24 +131,40 @@ mvs=[]
 hroot1=IMP.atom.Hierarchy(IMP.Particle(m))
 hroot2=IMP.atom.Hierarchy(IMP.Particle(m))
 
-points,radii=pickle.load(open("points_sphere.pkl","rb"))
+heads,radii=pickle.load(open("sphere_median_skin_points.pkl","rb"))
 
-for n,v in enumerate(points):
+
+for n,v in enumerate(heads):
     h,mva=get_particle(*v,radii[n])
     mvs.append(mva)
     hroot1.add_child(h)
     
-print(len(points))
 
-points,radii=pickle.load(open("points_cylinder.pkl","rb"))
 
-for n,v in enumerate(points):
+foot_anchors,radii=pickle.load(open("sphere_extrude_skin_points.pkl","rb"))
+
+
+for n,v in enumerate(feet):
     h,mva=get_particle(*v,radii[n])
     mvs.append(mva)
     hroot2.add_child(h)
-   
-print(len(points))
+    
 
+
+for p in IMP.atom.get_leaves(hroot1):
+    # what I want to do here is to create a restraint between heads
+    # and feet particles (resp. headgroups and the tail tips of the lipids)
+    # i create a new particle (foot) for each head and create a restraint that
+    # has a minimum at the optimal distance of a lipid
+    d=IMP.core.XYZ(p)
+    pfoot=get_particle(*d.get_coordinates(),d.get_radii())
+    ### create restraint bewteen pfoot and p and a mover
+
+    # I use closest_node function above to find the closest foot anchor points
+    # and create a restraint between the foot and the feet_anchor point
+    index=closest_node(d.get_coordinates(),foot_anchors())
+    # retrieve the particle corrisponding to that index
+    # create a restraint.
 
 '''
 ssps = IMP.core.SoftSpherePairScore(1.0)
@@ -172,6 +193,7 @@ import RMF
 
 rh = RMF.create_rmf_file("out.rmf")
 IMP.rmf.add_hierarchies(rh, [hroot1,hroot2])
+
 IMP.rmf.save_frame(rh)
 
 
