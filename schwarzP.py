@@ -28,7 +28,7 @@ sampled=pdf.get_sparse_grid_from_points(sp_density,points)
 pdf.save_density(sampled, 1.0, "sp_median_skin_points.mrc", origin=None)
 pickle.dump((points,radii),open("sp_median_skin_points.pkl","wb"))
 
-
+'''
 # compute the extrusion
 extrude_skin=pdf.extrude(skin)
 pdf.save_density(extrude_skin, 1.0, "sp_extrude_skin.mrc", origin=None)
@@ -39,6 +39,6 @@ sampled=pdf.get_sparse_grid_from_points(sp_density,points)
 pdf.save_density(sampled, 1.0, "sp_extrude_skin_points.mrc", origin=None)
 pickle.dump((points,radii),open("sp_extrude_skin_points.pkl","wb"))
 
-
+'''
 
 
