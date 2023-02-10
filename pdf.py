@@ -8,8 +8,27 @@ from tqdm import tqdm
 import sys
 
 
+class Grid(object):
+    def __init__(self,vector1,vector2,resolution=1):
+        #parameters grid
+        minx=vector1[0]
+        maxx=vector2[0]
+        nx=int(np.abs(maxx-minx)/resolution)
 
+        miny=vector1[1]
+        maxy=vector2[1]
+        ny=int(np.abs(maxy-miny)/resolution)
 
+        minz=vector1[2]
+        maxz=vector2[2]
+        nz=int(np.abs(maxz-minz)/resolution)
+
+        self.xaxis = np.linspace(minx,maxx, nx)
+        self.yaxis = np.linspace(miny,maxy, ny)
+        self.zaxis = np.linspace(minz,maxz, nz)
+        
+    def evaluate(self,pdf):
+        return pdf(self.xaxis[:,None,None], self.yaxis[None,:,None], self.zaxis[None,None,:])
 
 
 def save_density(data, grid_spacing, outfilename, origin=None):
@@ -17,7 +36,7 @@ def save_density(data, grid_spacing, outfilename, origin=None):
     Save the density to an mrc file. The origin of the grid will be (0,0,0)
     • outfilename: the mrc file name for the output
     """
-    print("Saving mrc file ...")
+    print("Saving mrc file "+outfilename)
     data = data.astype('float32')
     with mrcfile.new(outfilename, overwrite=True) as mrc:
         mrc.set_data(data.T)
@@ -28,15 +47,17 @@ def save_density(data, grid_spacing, outfilename, origin=None):
             mrc.header['origin']['z'] = origin[2]
         mrc.update_header_from_data()
         mrc.update_header_stats()
-    print("done")
 
-def extrude(result,density_skin,density_skin_thickness, extrusion1=10, extrusion2=13):
-    w=np.where((result>=density_skin) & (result<density_skin+density_skin_thickness))
+def extrude(skin_as_grid,extrusion1=20, extrusion2=23):
+    print("Extrusion ")
+    w=np.where(skin_as_grid==1.0)
     wt=list(zip(*w))
-    rest1=np.zeros_like(result)
+    
+    rest1=np.zeros_like(skin_as_grid)
     for p in tqdm(wt):
         rest1[p[0]-extrusion1:p[0]+extrusion1,p[1]-extrusion1:p[1]+extrusion1,p[2]-extrusion1:p[2]+extrusion1]=1.0
-    rest2=np.zeros_like(result)
+        
+    rest2=np.zeros_like(skin_as_grid)
     
     for p in tqdm(wt):
         rest2[p[0]-extrusion2:p[0]+extrusion2,p[1]-extrusion2:p[1]+extrusion2,p[2]-extrusion2:p[2]+extrusion2]=1.0
@@ -44,19 +65,35 @@ def extrude(result,density_skin,density_skin_thickness, extrusion1=10, extrusion
     rest=rest2-rest1
     return rest
 
-def sample_extrusion(extrusion,min_distance_beads=10.0):
-    w=np.where(extrusion==1)
+def get_skin(evaluated_pdf,density_skin_threshold,density_skin_thickness):
+    w=np.where((evaluated_pdf>=density_skin_threshold) & (evaluated_pdf<density_skin_threshold+density_skin_thickness))
+    wt=list(zip(*w))
+    
+    rs=get_sparse_grid_from_points(evaluated_pdf,wt)
+    return rs
+
+def get_sparse_grid_from_points(evaluated_pdf,points):
+    rs=np.zeros_like(evaluated_pdf)
+    for p in points:
+        rs[p]=1.0
+    return rs
+
+def sample_skin(skin,min_distance_beads=10.0,tolerance=0.001):
+    print("Sampling a skin ")
+    w=np.where(skin==1.0)
     wt=list(zip(*w))
     rest=np.ones_like(range(len(wt)))
     points=[]
     tree = spatial.KDTree(wt)
 
     total=np.sum(rest)
-    while np.sum(rest)>0:
+    sys.stdout.write('Sampling the skin '+str(total)+' grid points \n')
+    while np.sum(rest)/total>tolerance:
         #progress bar
         sys.stdout.write('\r')
-        sys.stdout.write(str(np.sum(rest)/total))
+        sys.stdout.write(str(round(np.sum(rest)/total,7))+" %")
         sys.stdout.flush()
+        
         choice_index=np.random.choice(np.where(rest == 1)[0])
         v=wt[choice_index]
         points.append(v)
@@ -64,46 +101,8 @@ def sample_extrusion(extrusion,min_distance_beads=10.0):
         indexes=tree.query_ball_point(v,r=min_distance_beads)
         for i in indexes: rest[i]=0
 
+    return points
 
-    rs=np.zeros_like(extrusion)
-    for p in points:
-        rs[p]=1.0
-    
-    
-    radii=[min_distance_beads/2]*len(points)
-    return rs,points,radii
-
-def sample_surface(result,density_skin,density_skin_thickness,min_distance_beads=4.0):
-    w=np.where((result>=density_skin) & (result<density_skin+density_skin_thickness))
-    wt=list(zip(*w))
-    rest=np.ones_like(range(len(wt)))
-    points=[]
-    tree = spatial.KDTree(wt)
-    
-    total=np.sum(rest)
-    while np.sum(rest)>0:
-        #progress bar
-        sys.stdout.write('\r')
-        sys.stdout.write(str(np.sum(rest)/total))
-        sys.stdout.flush()
-    
-        choice_index=np.random.choice(np.where(rest == 1)[0])
-        v=wt[choice_index]
-        points.append(v)
-
-        indexes=tree.query_ball_point(v,r=min_distance_beads)
-        for index in indexes:
-            try:
-                rest[index]=0
-            except:
-                continue
-
-    rs=np.zeros_like(result)
-    for v in points:
-        rs[v]=1.0
-    
-    radii=[min_distance_beads/2]*len(points)
-    return rs,points,radii
 
 def cylinderz(xcenter,ycenter,r=10.0,tolerance=100):
     def pdf(x,y,z):
@@ -152,6 +151,20 @@ def SchwarzD(period):
         return a + b + c + d
     return pdf
 
+
+def SchwarzP(period):
+    """
+    :param x: a vector of coordinates (x1, x2, x3)
+    :param period: length of one period
+    :return: An approximation of the Schwarz D "Diamond" infinite periodic minimal surface
+    """
+    n = 2*np.pi / period  # might be just pi / period
+    def pdf(x,y,z):
+        
+        a = np.cos(n*x)+np.cos(n*y)+np.cos(n*z)
+
+        return a
+    return pdf
 
 def sphere(xc=0,yc=0,zc=0,tolerance=100, r=50):
     def pdf(x,y,z):
