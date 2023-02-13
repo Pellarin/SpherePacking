@@ -3,7 +3,7 @@ import IMP.atom
 import IMP.core
 import IMP.display
 import random
-import dill as pickle
+import pickle
 import numpy as np
 from scipy.spatial import Delaunay
 
@@ -98,7 +98,7 @@ def closest_node(node, nodes):
 
 
 
-def get_particle(x,y,z,r):
+def get_particle(x,y,z,r,is_optimized):
     # create a new particle
     pa=IMP.Particle(m)
 
@@ -118,53 +118,90 @@ def get_particle(x,y,z,r):
     IMP.atom.Mass.setup_particle(pa,100.0)
 
     # set the optimization of the coordinates to True
-    dr.set_coordinates_are_optimized(True)
+    dr.set_coordinates_are_optimized(is_optimized)
     
     # create a hierarchy
     ha=IMP.atom.Hierarchy(pa)
 
     #now create the movers
     mva=IMP.core.BallMover(m,pa,5)
+    
+    IMP.atom.Bonded.setup_particle(pa)
+    
     return ha,mva
     
 mvs=[]
 hroot1=IMP.atom.Hierarchy(IMP.Particle(m))
 hroot2=IMP.atom.Hierarchy(IMP.Particle(m))
+hroot3=IMP.atom.Hierarchy(IMP.Particle(m))
 
-heads,radii=pickle.load(open("sphere_median_skin_points.pkl","rb"))
+heads,radii=pickle.load(open("sp_extrude_skin_points.pkl","rb"))
 
 
 for n,v in enumerate(heads):
-    h,mva=get_particle(*v,radii[n])
-    mvs.append(mva)
+    h,mva=get_particle(*v,radii[n],True)
     hroot1.add_child(h)
     
 
 
-foot_anchors,radii=pickle.load(open("sphere_extrude_skin_points.pkl","rb"))
+foot_anchors,radii=pickle.load(open("sp_median_skin_points.pkl","rb"))
 
-
-for n,v in enumerate(feet):
-    h,mva=get_particle(*v,radii[n])
-    mvs.append(mva)
+panchors=[]
+for n,v in enumerate(foot_anchors):
+    h,mva=get_particle(*v,radii[n],False)
     hroot2.add_child(h)
+    panchors.append(h)
     
 
-
+ds=[]
 for p in IMP.atom.get_leaves(hroot1):
     # what I want to do here is to create a restraint between heads
     # and feet particles (resp. headgroups and the tail tips of the lipids)
     # i create a new particle (foot) for each head and create a restraint that
     # has a minimum at the optimal distance of a lipid
-    d=IMP.core.XYZ(p)
-    pfoot=get_particle(*d.get_coordinates(),d.get_radii())
+    d=IMP.core.XYZR(p)
+    pfoot,mva=get_particle(*d.get_coordinates(),d.get_radius(),True)
+    hroot3.add_child(pfoot)
+    mvs.append(mva)
+    hf = IMP.core.Harmonic(15.0,1.0)
+    dr=IMP.core.DistanceRestraint(m,hf,p,pfoot)
+    ds.append(dr)
+    
+    IMP.atom.create_bond(
+                IMP.atom.Bonded(pfoot),
+                IMP.atom.Bonded(p), 1)
+    
+    
     ### create restraint bewteen pfoot and p and a mover
 
     # I use closest_node function above to find the closest foot anchor points
     # and create a restraint between the foot and the feet_anchor point
-    index=closest_node(d.get_coordinates(),foot_anchors())
+    index=closest_node(d.get_coordinates(),foot_anchors)
+    pa=panchors[index]
+    hf = IMP.core.Harmonic(10.0,1.0)
+    dr=IMP.core.DistanceRestraint(m,hf,pa,pfoot)
+    ds.append(dr)
+    
+    IMP.atom.create_bond(
+                IMP.atom.Bonded(pfoot),
+                IMP.atom.Bonded(pa), 1)
+    
     # retrieve the particle corrisponding to that index
     # create a restraint.
+
+ssps = IMP.core.SoftSpherePairScore(1.0)
+lsa = IMP.container.ListSingletonContainer(m)
+lsa.add(IMP.get_indexes(IMP.atom.get_leaves(hroot3)+IMP.atom.get_leaves(hroot1)))
+rbcpf = IMP.core.RigidClosePairsFinder()
+cpc = IMP.container.ClosePairContainer(lsa, 0.0, rbcpf, 10.0)
+evr = IMP.container.PairsRestraint(ssps, cpc)
+
+
+
+sf = IMP.core.RestraintsScoringFunction(ds+[evr])
+cg = IMP.core.ConjugateGradients(m)
+cg.set_scoring_function(sf)
+
 
 '''
 ssps = IMP.core.SoftSpherePairScore(1.0)
@@ -192,20 +229,18 @@ import IMP.rmf
 import RMF
 
 rh = RMF.create_rmf_file("out.rmf")
-IMP.rmf.add_hierarchies(rh, [hroot1,hroot2])
-
+IMP.rmf.add_hierarchies(rh, [hroot1,hroot2,hroot3])
+IMP.rmf.add_restraints(rh, ds)
 IMP.rmf.save_frame(rh)
 
 
-exit()
-
 
 # run the sampling
-for i in range(100):
-    print(i)
-    mc.optimize(1000)
+for i in range(10):
+    cg.optimize(100)
+    #mc.optimize(1000)
     IMP.rmf.save_frame(rh)
-    print(sf.evaluate(False))
+    print(i,sf.evaluate(False))
     
 del rh
 
