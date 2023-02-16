@@ -56,12 +56,9 @@ def extrude(skin_as_grid,extrusion1=20, extrusion2=23):
     rest1=np.zeros_like(skin_as_grid)
     for p in tqdm(wt):
         rest1[p[0]-extrusion1:p[0]+extrusion1,p[1]-extrusion1:p[1]+extrusion1,p[2]-extrusion1:p[2]+extrusion1]=1.0
-        
     rest2=np.zeros_like(skin_as_grid)
-    
     for p in tqdm(wt):
         rest2[p[0]-extrusion2:p[0]+extrusion2,p[1]-extrusion2:p[1]+extrusion2,p[2]-extrusion2:p[2]+extrusion2]=1.0
-    
     rest=rest2-rest1
     return rest
 
@@ -103,6 +100,11 @@ def sample_skin(skin,min_distance_beads=10.0,tolerance=0.001):
 
     return points
 
+def planexy(tolerance=100):
+    def pdf(x,y,z):
+        argument=np.abs((x-x)**2+(y-y)**2+(z)**2)/tolerance
+        return np.exp(-argument)
+    return pdf
 
 def cylinderz(xcenter,ycenter,r=10.0,tolerance=100):
     def pdf(x,y,z):
@@ -129,7 +131,6 @@ def gyroid(period):
         a = np.sin(n*x)*np.cos(n*y)
         b = np.sin(n*y)*np.cos(n*z)
         c = np.sin(n*z)*np.cos(n*x)
-
         return a + b + c
     return pdf
 
@@ -142,12 +143,10 @@ def SchwarzD(period):
     """  
     n = 2*np.pi / period  # might be just pi / period
     def pdf(x,y,z):
-        
         a = np.sin(n*x)*np.sin(n*y)*np.sin(n*z)
         b = np.sin(n*x)*np.cos(n*y)*np.cos(n*z)
         c = np.cos(n*x)*np.sin(n*y)*np.cos(n*z)
         d = np.cos(n*x)*np.cos(n*y)*np.sin(n*z)
-
         return a + b + c + d
     return pdf
 
@@ -160,9 +159,7 @@ def SchwarzP(period):
     """
     n = 2*np.pi / period  # might be just pi / period
     def pdf(x,y,z):
-        
         a = np.cos(n*x)+np.cos(n*y)+np.cos(n*z)
-
         return a
     return pdf
 
@@ -222,12 +219,10 @@ def extrudepdf(evaluated_pdf,threshold,thickness,extrusion=10,tolerance=100):
     return
 
 def joinpdf(pdfs):
-    
     def pdf(x,y,z):
         accum=1.0-pdfs[0](x,y,z)
         for pdf in pdfs[1:]: accum=accum*(1.0-pdf(x,y,z))
         return 1.0-accum
-            
     return pdf
     
 def intersectpdf(pdfs):
