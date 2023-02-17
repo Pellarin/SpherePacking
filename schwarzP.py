@@ -19,7 +19,7 @@ sppdf=pdf.SchwarzP(500.0)
 sp_density = g.evaluate(sppdf)
 pdf.save_density(sp_density, 1.0, "sp.mrc", origin=None)
 
-skin=pdf.get_skin(sp_density,0.27,0.03)
+skin=pdf.get_skin(sp_density,0.27,0.01)
 pdf.save_density(skin, 1.0, "sp_median_skin.mrc", origin=None)
 radius=8.0
 points=pdf.sample_skin(skin,min_distance_beads=radius)
