@@ -8,6 +8,7 @@ import numpy as np
 from scipy.spatial import Delaunay
 import math
 from matplotlib import colors
+from tqdm import tqdm
 
 # create an IMP model
 m=IMP.Model()
@@ -153,10 +154,9 @@ hroot=IMP.atom.Hierarchy(IMP.Particle(m))
 build=Build(hroot,topologies)
 
 hroot_head=IMP.atom.Hierarchy(IMP.Particle(m))
-heads,radii=pickle.load(open("plane_extrude_skin_points.pkl","rb"))
+heads,radii=pickle.load(open("sphere_extrude_skin_points.pkl","rb"))
 head_particles=[]
-for n,v in enumerate(heads):
-    print("building "+str(n)+":"+str(len(heads)))
+for n,v in tqdm(enumerate(heads)):
     build.init_molecule("POPC",*v,3,True)
     h,mv=get_particle(*v,radii[n],False)
     hroot_head.add_child(h)
@@ -164,9 +164,9 @@ for n,v in enumerate(heads):
     
 
 hroot_foot=IMP.atom.Hierarchy(IMP.Particle(m))
-foot_anchors,radii=pickle.load(open("plane_median_skin_points.pkl","rb"))
+foot_anchors,radii=pickle.load(open("sphere_median_skin_points.pkl","rb"))
 foot_particles=[]
-for n,v in enumerate(foot_anchors):
+for n,v in tqdm(enumerate(foot_anchors)):
     h,mv=get_particle(*v,radii[n],False)
     hroot_foot.add_child(h)
     foot_particles.append(h)
@@ -175,7 +175,7 @@ for n,v in enumerate(foot_anchors):
 
 anchor_restraints=[]
 lip_feet=IMP.atom.Selection(hroot,molecule="POPC",residue_indexes=[8,12]).get_selected_particles()
-for p in lip_feet:
+for p in tqdm(lip_feet):
     index=closest_node(IMP.core.XYZ(p).get_coordinates(),foot_anchors)
     pa=foot_particles[index]
     hf = IMP.core.Harmonic(5.0,1.0)
@@ -183,7 +183,7 @@ for p in lip_feet:
     anchor_restraints.append(dr)
     
 lip_head=IMP.atom.Selection(hroot,molecule="POPC",residue_indexes=[2]).get_selected_particles()
-for p in lip_head:
+for p in tqdm(lip_head):
     index=closest_node(IMP.core.XYZ(p).get_coordinates(),heads)
     pa=head_particles[index]
     hf = IMP.core.Harmonic(0.0,1.0)
@@ -210,7 +210,6 @@ print(0,sf.evaluate(False))
 for i in range(200):
     cg.optimize(10)
     print(i,sf.evaluate(False))
-    IMP.rmf.save_frame(rh)
 
 ssps = IMP.core.SoftSpherePairScore(1.0)
 lsa = IMP.container.ListSingletonContainer(m)

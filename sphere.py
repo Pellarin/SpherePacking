@@ -35,6 +35,7 @@ sampled=pdf.get_sparse_grid_from_points(sp_density,points)
 pdf.save_density(sampled, 1.0, "sphere_extrude_skin_points.mrc", origin=None)
 pickle.dump((points,radii),open("sphere_extrude_skin_points.pkl","wb"))
 
-
-
+# compute the dilation difference
+dilation_skin=pdf.dilation_difference(skin)
+pdf.save_density(dilation_skin, 1.0, "sphere_dilation_skin.mrc", origin=None)
 

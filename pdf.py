@@ -4,11 +4,33 @@ import mrcfile
 import random
 import dill as pickle
 from scipy.spatial import distance
+from scipy import ndimage
 from tqdm import tqdm
+import open3d as o3d
 import sys
 
 
+def save_density(data, grid_spacing, outfilename, origin=None):
+    """
+    Save the density of a grid to an mrc file. The origin of the grid will be (0,0,0)
+    • outfilename: the mrc file name for the output
+    """
+    print("Saving mrc file "+outfilename)
+    data = data.astype('float32')
+    with mrcfile.new(outfilename, overwrite=True) as mrc:
+        mrc.set_data(data.T)
+        mrc.voxel_size = grid_spacing
+        if origin is not None:
+            mrc.header['origin']['x'] = origin[0]
+            mrc.header['origin']['y'] = origin[1]
+            mrc.header['origin']['z'] = origin[2]
+        mrc.update_header_from_data()
+        mrc.update_header_stats()
+
 class Grid(object):
+    """
+    This class created a 3D grid with specified dimensions
+    """
     def __init__(self,vector1,vector2,resolution=1):
         #parameters grid
         minx=vector1[0]
@@ -28,27 +50,16 @@ class Grid(object):
         self.zaxis = np.linspace(minz,maxz, nz)
         
     def evaluate(self,pdf):
+        # evaluate the grid on a pdf function
         return pdf(self.xaxis[:,None,None], self.yaxis[None,:,None], self.zaxis[None,None,:])
 
 
-def save_density(data, grid_spacing, outfilename, origin=None):
-    """
-    Save the density to an mrc file. The origin of the grid will be (0,0,0)
-    • outfilename: the mrc file name for the output
-    """
-    print("Saving mrc file "+outfilename)
-    data = data.astype('float32')
-    with mrcfile.new(outfilename, overwrite=True) as mrc:
-        mrc.set_data(data.T)
-        mrc.voxel_size = grid_spacing
-        if origin is not None:
-            mrc.header['origin']['x'] = origin[0]
-            mrc.header['origin']['y'] = origin[1]
-            mrc.header['origin']['z'] = origin[2]
-        mrc.update_header_from_data()
-        mrc.update_header_stats()
+
 
 def extrude(skin_as_grid,extrusion1=20, extrusion2=23):
+    """
+    Extrude a skin with two radii a subtract the two densities to obtain a bilayer skin
+    """
     print("Extrusion ")
     w=np.where(skin_as_grid==1.0)
     wt=list(zip(*w))
@@ -61,8 +72,21 @@ def extrude(skin_as_grid,extrusion1=20, extrusion2=23):
         rest2[p[0]-extrusion2:p[0]+extrusion2,p[1]-extrusion2:p[1]+extrusion2,p[2]-extrusion2:p[2]+extrusion2]=1.0
     rest=rest2-rest1
     return rest
-
+    
+def dilation_difference(skin_as_grid,inner_niter=20, outer_niter=23):
+    """
+    Extrude a skin with two radii a subtract the two densities to obtain a bilayer skin
+    """
+    print("Dilate")
+    d_inner=ndimage.binary_dilation(skin_as_grid,iterations=inner_niter)
+    d_outer=ndimage.binary_dilation(skin_as_grid,iterations=outer_niter)
+    rest=d_outer.astype(float)-d_inner.astype(float)
+    return rest
+           
 def get_skin(evaluated_pdf,density_skin_threshold,density_skin_thickness):
+    """
+    Get a skin from an evaluated grid
+    """
     w=np.where((evaluated_pdf>=density_skin_threshold) & (evaluated_pdf<density_skin_threshold+density_skin_thickness))
     wt=list(zip(*w))
     
@@ -70,12 +94,18 @@ def get_skin(evaluated_pdf,density_skin_threshold,density_skin_thickness):
     return rs
 
 def get_sparse_grid_from_points(evaluated_pdf,points):
+    """
+    Return a grid from a list of points
+    """
     rs=np.zeros_like(evaluated_pdf)
     for p in points:
         rs[p]=1.0
     return rs
 
 def sample_skin(skin,min_distance_beads=10.0,tolerance=0.001):
+    """
+    Sample a skin using equidistal points
+    """
     print("Sampling a skin ")
     w=np.where(skin==1.0)
     wt=list(zip(*w))
@@ -99,6 +129,27 @@ def sample_skin(skin,min_distance_beads=10.0,tolerance=0.001):
         for i in indexes: rest[i]=0
 
     return points
+
+def triangulate(points):
+    """
+    Triangulate a list points. Return a list of vertices and triangles defined as a list of indexes of vertices
+    """
+    pcs=o3d.utility.Vector3dVector(np.array(coordinates))
+    pc=o3d.geometry.PointCloud(pcs)
+    pc.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=8.0, max_nn=1))
+    pc.orient_normals_consistent_tangent_plane(100)
+    ball_mesh=o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(pc,o3d.utility.DoubleVector(np.array([20.0])))
+    decimated_mesh=ball_mesh.simplify_quadric_decimation(int(len(ball_mesh.triangles)/5))
+    decimated_mesh.remove_degenerate_triangles()
+    decimated_mesh.remove_duplicated_triangles()
+    decimated_mesh.remove_duplicated_vertices()
+    decimated_mesh.remove_non_manifold_edges()
+    
+    vertices=np.asarray(decimated_mesh.vertices)
+    triangles=np.asarray(decimated_mesh.triangles)
+    
+    return vertices, triangles
+
 
 def planexy(tolerance=100):
     def pdf(x,y,z):
@@ -242,4 +293,6 @@ def paraboloid(x,y,z):
     tolerance=40
     argument=np.abs(y**2/100-x**2/100-z)/tolerance
     return np.exp(-argument)
+
+
 

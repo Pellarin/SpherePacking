@@ -9,11 +9,7 @@ import RMF
 
 coordinates,radii=pickle.load(open("sp_median_skin_points.pkl","rb"))
 
-print(len(coordinates))
-
 pcs=o3d.utility.Vector3dVector(np.array(coordinates))
-
-
 
 pc=o3d.geometry.PointCloud(pcs)
 
