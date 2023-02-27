@@ -130,21 +130,21 @@ def sample_skin(skin,min_distance_beads=10.0,tolerance=0.001):
 
     return points
 
-def triangulate(points):
+def triangulate(coordinates,display=True):
     """
     Triangulate a list points. Return a list of vertices and triangles defined as a list of indexes of vertices
     """
     pcs=o3d.utility.Vector3dVector(np.array(coordinates))
     pc=o3d.geometry.PointCloud(pcs)
-    pc.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=8.0, max_nn=1))
+    pc.estimate_normals()
     pc.orient_normals_consistent_tangent_plane(100)
     ball_mesh=o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(pc,o3d.utility.DoubleVector(np.array([20.0])))
-    decimated_mesh=ball_mesh.simplify_quadric_decimation(int(len(ball_mesh.triangles)/5))
-    decimated_mesh.remove_degenerate_triangles()
-    decimated_mesh.remove_duplicated_triangles()
-    decimated_mesh.remove_duplicated_vertices()
-    decimated_mesh.remove_non_manifold_edges()
-    
+    #decimated_mesh=ball_mesh.simplify_quadric_decimation(int(len(ball_mesh.triangles)/5))
+    ball_mesh.remove_degenerate_triangles()
+    ball_mesh.remove_duplicated_triangles()
+    ball_mesh.remove_duplicated_vertices()
+    ball_mesh.remove_non_manifold_edges()
+    if display: o3d.visualization.draw_geometries([pc,ball_mesh], point_show_normal=True)
     vertices=np.asarray(decimated_mesh.vertices)
     triangles=np.asarray(decimated_mesh.triangles)
     

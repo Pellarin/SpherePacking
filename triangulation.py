@@ -7,14 +7,14 @@ import IMP.rmf
 import RMF
 
 
-coordinates,radii=pickle.load(open("sp_median_skin_points.pkl","rb"))
+coordinates,radii=pickle.load(open("ml_median_skin_points.pkl","rb"))
 
 pcs=o3d.utility.Vector3dVector(np.array(coordinates))
 
 pc=o3d.geometry.PointCloud(pcs)
 
-pc.estimate_normals(
-    search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=8.0, max_nn=1))
+pc.estimate_normals()
+#    search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=8.0, max_nn=1))
 pc.orient_normals_consistent_tangent_plane(100)
 '''
 poisson_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pc, depth=8, width=0, scale=1.1, linear_fit=False)[0]
@@ -22,12 +22,14 @@ decimated_poisson_mesh=poisson_mesh.simplify_quadric_decimation(1000)
 '''
 
 ball_mesh=o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(pc,o3d.utility.DoubleVector(np.array([20.0])))
-decimated_mesh=ball_mesh.simplify_quadric_decimation(int(len(ball_mesh.triangles)/5))
-decimated_mesh.remove_degenerate_triangles()
-decimated_mesh.remove_duplicated_triangles()
-decimated_mesh.remove_duplicated_vertices()
-decimated_mesh.remove_non_manifold_edges()
+#decimated_mesh=ball_mesh.simplify_quadric_decimation(int(len(ball_mesh.triangles)/5))
+ball_mesh.remove_degenerate_triangles()
+ball_mesh.remove_duplicated_triangles()
+ball_mesh.remove_duplicated_vertices()
+ball_mesh.remove_non_manifold_edges()
 
+
+o3d.visualization.draw_geometries([pc,ball_mesh], point_show_normal=True)
 #o3d.visualization.draw_geometries([poisson_mesh],mesh_show_wireframe=True)
 
 #print(np.asarray(len(poisson_mesh.vertices)))

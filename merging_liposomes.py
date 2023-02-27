@@ -15,33 +15,33 @@ sphere2=pdf.sphere(xc=-100,yc=0,zc=0,r=120,tolerance=1000)
 joint=pdf.joinpdf([sphere1,sphere2])
 
 sphere_density = g.evaluate(joint)
-pdf.save_density(sphere_density, 1.0, "sphere_join.mrc", origin=None)
+pdf.save_density(sphere_density, 1.0, "ml_join.mrc", origin=None)
 
 sf=pdf.sphere_filter(xc=0,yc=0,zc=0,tolerance=100,r=60,filterout_external=False)
 sphere_filter = g.evaluate(sf)
-pdf.save_density(sphere_filter, 1.0, "sphere_filter.mrc", origin=None)
+pdf.save_density(sphere_filter, 1.0, "ml_filter.mrc", origin=None)
 
 remove=sphere_density*sphere_filter
-pdf.save_density(remove, 1.0, "sphere_remove.mrc", origin=None)
+pdf.save_density(remove, 1.0, "ml_remove.mrc", origin=None)
 
 skin=pdf.get_skin(remove,0.50,0.02)
 extrude=pdf.dilation_difference(skin)
-pdf.save_density(extrude, 1.0, "sphere_intersect_extrusion.mrc", origin=None)
+pdf.save_density(extrude, 1.0, "ml_intersect_extrusion.mrc", origin=None)
 
-radius=2.0
+radius=15.0
 points=pdf.sample_skin(skin,min_distance_beads=radius)
 radii=[radius/2]*len(points)
 sampled=pdf.get_sparse_grid_from_points(extrude,points)
-pdf.save_density(sampled, 1.0, "sphere_median_skin_points.mrc", origin=None)
-pickle.dump((points,radii),open("sphere_median_skin_points.pkl","wb"))
+pdf.save_density(sampled, 1.0, "ml_median_skin_points.mrc", origin=None)
+pickle.dump((points,radii),open("ml_median_skin_points.pkl","wb"))
 
 
-radius=8.0
+radius=15.0
 points=pdf.sample_skin(extrude,min_distance_beads=radius)
 radii=[radius/2]*len(points)
 sampled=pdf.get_sparse_grid_from_points(extrude,points)
-pdf.save_density(sampled, 1.0, "sphere_extrude_skin_points.mrc", origin=None)
-pickle.dump((points,radii),open("sphere_extrude_skin_points.pkl","wb"))
+pdf.save_density(sampled, 1.0, "ml_extrude_skin_points.mrc", origin=None)
+pickle.dump((points,radii),open("ml_extrude_skin_points.pkl","wb"))
 
 
 
